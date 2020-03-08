@@ -27,7 +27,7 @@ The full list of dependencies can be found in the ```package.xml``` file.
 To install the simulator package, clone the repo with the simulator and starter code into your catkin workspace:
 
     cd ~/catkin_ws/src
-    git clone https://github.com/f1tenth/f110_ros.git
+    git clone https://github.com/YashTrikannad/f110-simulator-multi-agent.git
     
 Then run ```catkin_make``` to build it:
 

@@ -34,6 +34,7 @@
 
 using namespace racecar_simulator;
 
+static const size_t n_agents = 2;
 bool map_exists = false;
 
 class Racecar {
@@ -108,11 +109,9 @@ public:
     // A simulator of the laser
     ScanSimulator2D scan_simulator;
 
-    Racecar(std::shared_ptr<ros::NodeHandle> node_handle_ptr)
+    Racecar(): n(std::make_shared<ros::NodeHandle>(ros::NodeHandle("~")))
     {
-        // Initialize the node handle
-        n = std::move(node_handle_ptr);
-        rcid = rcid_counter++;
+        rcid = ++rcid_counter;
 
         // Initialize car state and driving commands
         state = {.x=0, .y=0, .theta=0, .velocity=0, .steer_angle=0.0, .angular_velocity=0.0, .slip_angle=0.0, .st_dyn=false};
@@ -553,8 +552,7 @@ int Racecar::rcid_counter = 0;
 class Simulator
 {
 public:
-    Simulator(std::shared_ptr<ros::NodeHandle> nh): n(std::move(nh)), racecars{Racecar(n)},
-    im_server("racecar_sim")
+    Simulator(): n(std::make_shared<ros::NodeHandle>(ros::NodeHandle("~"))), racecars(), im_server("racecar_sim")
     {
         // Get obstacle size parameter
         n->getParam("obstacle_size", obstacle_size);
@@ -747,9 +745,7 @@ private:
     std::shared_ptr<ros::NodeHandle> n;
 
     // Racecar Object
-//    Racecar racecar1;
-//    Racecar racecar2;
-    std::array<Racecar, 1> racecars;
+    std::array<Racecar, n_agents> racecars;
 
     // publisher for map with obstacles
     ros::Publisher map_pub;
@@ -782,8 +778,7 @@ private:
 int main(int argc, char ** argv)
 {
     ros::init(argc, argv, "f110_simulator");
-    std::shared_ptr<ros::NodeHandle> n = std::make_shared<ros::NodeHandle>(ros::NodeHandle("~"));
-    Simulator simulator(n);
+    Simulator simulator;
     ros::spin();
     return 0;
 }

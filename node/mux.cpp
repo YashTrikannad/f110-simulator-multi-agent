@@ -1,3 +1,5 @@
+#include <locale>
+
 #include <ros/ros.h>
 
 #include <ackermann_msgs/AckermannDriveStamped.h>
@@ -9,6 +11,8 @@
 #include <std_msgs/String.h>
 
 #include "f110_simulator/channel.h"
+
+static const size_t n_agents = 2;
 
 class Mux {
 private:
@@ -58,7 +62,7 @@ public:
     {
         // Initialize the node handle
         n = ros::NodeHandle("~");
-        muxid = muxid_count++;
+        muxid = ++muxid_count;
         // get topic names
         std::string drive_topic, mux_topic, joy_topic, key_topic;
         n.getParam("drive_topic", drive_topic);
@@ -134,6 +138,7 @@ public:
         // n.getParam("new_drive_topic", new_drive_topic);
         // n.getParam("new_mux_idx", new_mux_idx);
         // add_channel(new_drive_topic, drive_topic, new_mux_idx);
+        ROS_INFO("Mux %i constructed", muxid);
     }
 
     void add_channel(std::string channel_name, std::string drive_topic, int mux_idx_) {
@@ -226,7 +231,8 @@ public:
                 desired_velocity = prev_key_velocity;
             } else if (msg.data == " ") {
                 // publish zeros to slow down/straighten out car
-            } else {
+            }
+            else {
                 // so that it doesn't constantly publish zeros when you press other keys
                 publish = false;
             }
@@ -256,8 +262,10 @@ Channel::Channel(std::string channel_name, std::string drive_topic, int mux_idx_
     channel_sub = mux->n.subscribe(channel_name, 1, &Channel::drive_callback, this);
 }
 
-void Channel::drive_callback(const ackermann_msgs::AckermannDriveStamped & msg) {
-    if (mp_mux->mux_controller[this->mux_idx]) {
+void Channel::drive_callback(const ackermann_msgs::AckermannDriveStamped & msg)
+{
+    if (mp_mux->mux_controller[this->mux_idx])
+    {
         drive_pub.publish(msg);
     }
 }
@@ -265,7 +273,7 @@ void Channel::drive_callback(const ackermann_msgs::AckermannDriveStamped & msg) 
 int main(int argc, char ** argv)
 {
     ros::init(argc, argv, "mux_controller");
-    std::array<Mux, 1> mx;
+    std::array<Mux, n_agents> mx;
     ros::spin();
     return 0;
 }

@@ -3,6 +3,7 @@
 
 #include <std_msgs/Int32MultiArray.h>
 #include <std_msgs/Bool.h>
+#include <std_msgs/Int8.h>
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/LaserScan.h>
 #include <nav_msgs/Odometry.h>
@@ -16,6 +17,8 @@
 
 using namespace racecar_simulator;
 
+static const size_t n_agents = 2;
+
 class BehaviorController {
 private:
     // A ROS node
@@ -28,6 +31,7 @@ private:
     ros::Subscriber odom_sub;
     ros::Subscriber imu_sub;
     ros::Subscriber brake_bool_sub;
+    ros::Subscriber active_car_sub;
 
     // Publisher for mux controller
     ros::Publisher mux_pub;
@@ -87,23 +91,33 @@ private:
     // Unique muxid
     int muxid;
 
+    // Active Car index
+    int active_car_idx;
+
 public:
-    BehaviorController() {
+    BehaviorController()
+    {
         // Initialize the node handle
         n = ros::NodeHandle("~");
-        muxid = muxid_count++;
+        muxid = ++muxid_count;
+        active_car_idx = 0;
 
         // get topic names
-        std::string scan_topic, odom_topic, imu_topic, joy_topic, keyboard_topic, brake_bool_topic, mux_topic;
+        std::string scan_topic, odom_topic, imu_topic, joy_topic, keyboard_topic, brake_bool_topic, mux_topic, active_car_topic;
         n.getParam("scan_topic", scan_topic);
         scan_topic = scan_topic + "_" + std::to_string(muxid);
         n.getParam("odom_topic", odom_topic);
+        odom_topic = odom_topic + "_" + std::to_string(muxid);
         n.getParam("imu_topic", imu_topic);
-        n.getParam("joy_topic", joy_topic);
+        imu_topic = imu_topic + "_" + std::to_string(muxid);
+        n.getParam("joy_topic", imu_topic);
+        imu_topic = imu_topic + "_" + std::to_string(muxid);
         n.getParam("mux_topic", mux_topic);
         mux_topic = mux_topic + "_" + std::to_string(muxid);
         n.getParam("keyboard_topic", keyboard_topic);
         n.getParam("brake_bool_topic", brake_bool_topic);
+        brake_bool_topic = brake_bool_topic + "_" + std::to_string(muxid);
+        n.getParam("active_car_topic", active_car_topic);
 
         // Make a publisher for mux messages
         mux_pub = n.advertise<std_msgs::Int32MultiArray>(mux_topic, 10);
@@ -115,6 +129,7 @@ public:
         odom_sub = n.subscribe(odom_topic, 1, &BehaviorController::odom_callback, this);
         key_sub = n.subscribe(keyboard_topic, 1, &BehaviorController::key_callback, this);
         brake_bool_sub = n.subscribe(brake_bool_topic, 1, &BehaviorController::brake_callback, this);
+        active_car_sub = n.subscribe(active_car_topic, 1, &BehaviorController::active_car_callback, this);
 
         // Get mux indices
         n.getParam("joy_mux_idx", joy_mux_idx);
@@ -178,6 +193,7 @@ public:
         collision_file.open(ros::package::getPath("racecar_simulator") + "/logs/" + filename + ".txt");
         beginning_seconds = ros::Time::now().toSec();
 
+        ROS_INFO("Behavior Controller %i constructed", muxid);
     }
 
     /// ---------------------- GENERAL HELPER FUNCTIONS ----------------------
@@ -195,13 +211,20 @@ public:
         mux_pub.publish(mux_msg);
     }
 
+    void disable_all_control()
+    {
+        for (int i = 0; i < mux_size; i++)
+        {
+            mux_controller[i] = false;
+        }
+    }
+
     void change_controller(int controller_idx) {
         // This changes the controller to the input index and publishes it
 
         // turn everything off
-        for (int i = 0; i < mux_size; i++) {
-            mux_controller[i] = false;
-        }
+        disable_all_control();
+
         // turn on desired controller
         mux_controller[controller_idx] = true;
 
@@ -281,100 +304,162 @@ public:
 
     /// ---------------------- CALLBACK FUNCTIONS ----------------------
 
-    void brake_callback(const std_msgs::Bool & msg) {
-        if (msg.data && safety_on) {
-            toggle_brake_mux();
-        } else if (!msg.data && mux_controller[brake_mux_idx]) {
-            mux_controller[brake_mux_idx] = false;
+    void brake_callback(const std_msgs::Bool & msg)
+    {
+        if(active_car_idx == 0 || active_car_idx == muxid)
+        {
+            if (msg.data && safety_on)
+            {
+                toggle_brake_mux();
+            } else if (!msg.data && mux_controller[brake_mux_idx])
+            {
+                mux_controller[brake_mux_idx] = false;
+            }
+        }
+        else
+        {
+            disable_all_control();
         }
     }
 
-    void joy_callback(const sensor_msgs::Joy & msg) {
-        // Changing mux_controller:
-        if (msg.buttons[joy_button_idx]) { 
-            // joystick
-            toggle_mux(joy_mux_idx, "Joystick");
-        }
-        if (msg.buttons[key_button_idx]) { 
-            // keyboard
-            toggle_mux(key_mux_idx, "Keyboard");
-        }
-        else if (msg.buttons[brake_button_idx]) { 
-            // emergency brake 
-            if (safety_on) {
-                ROS_INFO("Emergency brake turned off");
-                safety_on = false;
+    void joy_callback(const sensor_msgs::Joy & msg)
+    {
+        if(active_car_idx == 0 || active_car_idx == muxid)
+        {
+            // Changing mux_controller:
+            if (msg.buttons[joy_button_idx])
+            {
+                // joystick
+                toggle_mux(joy_mux_idx, "Joystick");
             }
-            else {
-                ROS_INFO("Emergency brake turned on");
-                safety_on = true;
+            if (msg.buttons[key_button_idx])
+            {
+                // keyboard
+                toggle_mux(key_mux_idx, "Keyboard");
+            } else if (msg.buttons[brake_button_idx])
+            {
+                // emergency brake
+                if (safety_on)
+                {
+                    ROS_INFO("Emergency brake turned off");
+                    safety_on = false;
+                } else
+                {
+                    ROS_INFO("Emergency brake turned on");
+                    safety_on = true;
+                }
+            } else if (msg.buttons[random_walk_button_idx])
+            {
+                // random walker
+                toggle_mux(random_walker_mux_idx, "Random Walker");
+            } else if (msg.buttons[nav_button_idx])
+            {
+                // nav
+                toggle_mux(nav_mux_idx, "Navigation");
             }
+            // ***Add new else if statement here for new planning method***
+            // if (msg.buttons[new_button_idx]) {
+            //  // new planner
+            //  toggle_mux(new_mux_idx, "New Planner");
+            // }
         }
-        else if (msg.buttons[random_walk_button_idx]) { 
-            // random walker
-            toggle_mux(random_walker_mux_idx, "Random Walker");
-        } else if (msg.buttons[nav_button_idx]) {
-            // nav
-            toggle_mux(nav_mux_idx, "Navigation");
+        else
+        {
+            disable_all_control();
         }
-        // ***Add new else if statement here for new planning method***
-        // if (msg.buttons[new_button_idx]) {
-        //  // new planner
-        //  toggle_mux(new_mux_idx, "New Planner");
-        // }
-
     }
 
-    void key_callback(const std_msgs::String & msg) {
-        // Changing mux controller:
-        if (msg.data == joy_key_char) {
-            // joystick
-            toggle_mux(joy_mux_idx, "Joystick");
-        } else if (msg.data == keyboard_key_char) {
-            // keyboard
-            toggle_mux(key_mux_idx, "Keyboard");
-        } else if (msg.data == brake_key_char) {
-            // emergency brake 
-            if (safety_on) {
-                ROS_INFO("Emergency brake turned off");
-                safety_on = false;
-            }
-            else {
-                ROS_INFO("Emergency brake turned on");
-                safety_on = true;
-            }
-        } else if (msg.data == random_walk_key_char) {
-            // random walker
-            toggle_mux(random_walker_mux_idx, "Random Walker");
-        } else if (msg.data == nav_key_char) {
-            // nav
-            toggle_mux(nav_mux_idx, "Navigation");
+    void key_callback(const std_msgs::String & msg)
+    {
+        if (std::isdigit(msg.data.at(0)))
+        {
+            active_car_idx = std::stoi(msg.data);
+            ROS_INFO("Current Active Car: %i", active_car_idx);
         }
-        // ***Add new else if statement here for new planning method***
-        // if (msg.data == new_key_char) {
-        //  // new planner
-        //  toggle_mux(new_mux_idx, "New Planner");
-        // }
-
+        if(active_car_idx == 0 || active_car_idx == muxid)
+        {
+            // Changing mux controller:
+            if (msg.data == joy_key_char)
+            {
+                // joystick
+                toggle_mux(joy_mux_idx, "Joystick");
+            } else if (msg.data == keyboard_key_char)
+            {
+                // keyboard
+                toggle_mux(key_mux_idx, "Keyboard");
+            } else if (msg.data == brake_key_char)
+            {
+                // emergency brake
+                if (safety_on)
+                {
+                    ROS_INFO("Emergency brake turned off");
+                    safety_on = false;
+                } else
+                {
+                    ROS_INFO("Emergency brake turned on");
+                    safety_on = true;
+                }
+            } else if (msg.data == random_walk_key_char)
+            {
+                // random walker
+                toggle_mux(random_walker_mux_idx, "Random Walker");
+            } else if (msg.data == nav_key_char)
+            {
+                // nav
+                toggle_mux(nav_mux_idx, "Navigation");
+            }
+            // ***Add new else if statement here for new planning method***
+            // if (msg.data == new_key_char) {
+            //  // new planner
+            //  toggle_mux(new_mux_idx, "New Planner");
+            // }
+        }
+        else
+        {
+            disable_all_control();
+        }
     }
 
-    void laser_callback(const sensor_msgs::LaserScan & msg) {
-        // check for a collision
-        collision_checker(msg);
-
-
+    void laser_callback(const sensor_msgs::LaserScan & msg)
+    {
+        if(active_car_idx == 0 || active_car_idx == muxid)
+        {
+            // check for a collision
+            collision_checker(msg);
+        }
+        else
+        {
+            disable_all_control();
+        }
     }
 
-    void odom_callback(const nav_msgs::Odometry & msg) {
-        // Keep track of state to be used elsewhere
-        state.velocity = msg.twist.twist.linear.x;
-        state.angular_velocity = msg.twist.twist.angular.z;
-        state.x = msg.pose.pose.position.x;
-        state.y = msg.pose.pose.position.y;
+    void odom_callback(const nav_msgs::Odometry & msg)
+    {
+        if(active_car_idx == 0 || active_car_idx == muxid)
+        {
+            // Keep track of state to be used elsewhere
+            state.velocity = msg.twist.twist.linear.x;
+            state.angular_velocity = msg.twist.twist.angular.z;
+            state.x = msg.pose.pose.position.x;
+            state.y = msg.pose.pose.position.y;
+        }
+        else
+        {
+            disable_all_control();
+        }
     }
 
     void imu_callback(const sensor_msgs::Imu & msg) {
 
+    }
+
+    /**
+     * Updates the active_car_idx which is a signal to indicate which car is currently active
+     * @param msg
+     */
+    void active_car_callback(const std_msgs::Int8& msg)
+    {
+        active_car_idx = msg.data;
     }
 
     static int muxid_count;
@@ -382,9 +467,10 @@ public:
 
 int BehaviorController::muxid_count = 0;
 
-int main(int argc, char ** argv) {
+int main(int argc, char ** argv)
+{
     ros::init(argc, argv, "behavior_controller");
-    std::array<BehaviorController, 1> bc;
+    std::array<BehaviorController, n_agents> bc;
     ros::spin();
     return 0;
 }

@@ -151,7 +151,9 @@ public:
         // Get the transformation frame names
         n->getParam("map_frame", map_frame);
         n->getParam("base_frame", base_frame);
+        base_frame = "racecar" + std::to_string(rcid) + "/" + base_frame;
         n->getParam("scan_frame", scan_frame);
+        scan_frame = "racecar" + std::to_string(rcid) + "/" + scan_frame;
 
         // Fetch the car parameters
         int scan_beams;
@@ -521,11 +523,11 @@ public:
         ts_wheel.transform.rotation.z = quat_wheel.z();
         ts_wheel.transform.rotation.w = quat_wheel.w();
         ts_wheel.header.stamp = timestamp;
-        ts_wheel.header.frame_id = "front_left_hinge";
-        ts_wheel.child_frame_id = "front_left_wheel";
+        ts_wheel.header.frame_id = "racecar" + std::to_string(rcid) + "/front_left_hinge";
+        ts_wheel.child_frame_id = "racecar" + std::to_string(rcid) + "/front_left_wheel";
         br.sendTransform(ts_wheel);
-        ts_wheel.header.frame_id = "front_right_hinge";
-        ts_wheel.child_frame_id = "front_right_wheel";
+        ts_wheel.header.frame_id = "racecar" + std::to_string(rcid) + "/front_right_hinge";
+        ts_wheel.child_frame_id = "racecar" + std::to_string(rcid) + "/front_right_wheel";
         br.sendTransform(ts_wheel);
     }
 

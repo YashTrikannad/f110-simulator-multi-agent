@@ -6,6 +6,8 @@ Panels:
       Expanded:
         - /Global Options1
         - /Status1
+        - /LaserScan2
+        - /LaserScan2/Status1
       Splitter Ratio: 0.5
     Tree Height: 516
   - Class: rviz/Selection
@@ -68,9 +70,9 @@ Visualization Manager:
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 20.3624267578125
+      Max Intensity: 19.204267501831055
       Min Color: 0; 0; 225
-      Min Intensity: 2.090012788772583
+      Min Intensity: 1.9300458431243896
       Name: LaserScan
       Position Transformer: XYZ
       Queue Size: 10
@@ -86,32 +88,32 @@ Visualization Manager:
     - Alpha: 1
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
-        Max Value: 10
-        Min Value: -10
+        Max Value: 0
+        Min Value: 0
         Value: true
       Axis: Z
       Channel Name: intensity
       Class: rviz/LaserScan
-      Color: 255; 255; 255
-      Color Transformer: Intensity
+      Color: 238; 238; 236
+      Color Transformer: FlatColor
       Decay Time: 0
       Enabled: true
       Invert Rainbow: false
       Max Color: 255; 255; 255
-      Max Intensity: 20.367782592773438
+      Max Intensity: 37.430965423583984
       Min Color: 0; 0; 0
-      Min Intensity: 2.0804316997528076
+      Min Intensity: 0.017568310722708702
       Name: LaserScan
       Position Transformer: XYZ
       Queue Size: 10
       Selectable: true
       Size (Pixels): 3
-      Size (m): 0.009999999776482582
+      Size (m): 0.10000000149011612
       Style: Flat Squares
       Topic: /scan_2
       Unreliable: false
       Use Fixed Frame: true
-      Use rainbow: true
+      Use rainbow: false
       Value: true
     - Alpha: 1
       Class: rviz/RobotModel
@@ -162,8 +164,62 @@ Visualization Manager:
           Show Trail: false
           Value: true
       Name: RobotModel
-      Robot Description: /racecar/robot_description
-      TF Prefix: ""
+      Robot Description: /racecar1/robot_description
+      TF Prefix: racecar1
+      Update Interval: 0
+      Value: true
+      Visual Enabled: true
+    - Alpha: 1
+      Class: rviz/RobotModel
+      Collision Enabled: false
+      Enabled: true
+      Links:
+        All Links Enabled: true
+        Expand Joint Details: false
+        Expand Link Details: false
+        Expand Tree: false
+        Link Tree Style: Links in Alphabetic Order
+        back_left_wheel:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        back_right_wheel:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_left_hinge:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        front_left_wheel:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        front_right_hinge:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        front_right_wheel:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        laser_model:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+      Name: RobotModel
+      Robot Description: /racecar2/robot_description
+      TF Prefix: racecar2
       Update Interval: 0
       Value: true
       Visual Enabled: true
@@ -286,7 +342,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 33.034759521484375
+      Distance: 47.676513671875
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -301,10 +357,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 1.5697963237762451
+      Pitch: 0.8997968435287476
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 3.138577699661255
+      Yaw: 3.0435683727264404
     Saved: ~
 Window Geometry:
   Displays:

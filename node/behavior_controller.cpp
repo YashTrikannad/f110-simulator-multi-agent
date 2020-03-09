@@ -31,7 +31,6 @@ private:
     ros::Subscriber odom_sub;
     ros::Subscriber imu_sub;
     ros::Subscriber brake_bool_sub;
-    ros::Subscriber active_car_sub;
 
     // Publisher for mux controller
     ros::Publisher mux_pub;
@@ -117,7 +116,6 @@ public:
         n.getParam("keyboard_topic", keyboard_topic);
         n.getParam("brake_bool_topic", brake_bool_topic);
         brake_bool_topic = brake_bool_topic + "_" + std::to_string(muxid);
-        n.getParam("active_car_topic", active_car_topic);
 
         // Make a publisher for mux messages
         mux_pub = n.advertise<std_msgs::Int32MultiArray>(mux_topic, 10);
@@ -129,7 +127,6 @@ public:
         odom_sub = n.subscribe(odom_topic, 1, &BehaviorController::odom_callback, this);
         key_sub = n.subscribe(keyboard_topic, 1, &BehaviorController::key_callback, this);
         brake_bool_sub = n.subscribe(brake_bool_topic, 1, &BehaviorController::brake_callback, this);
-        active_car_sub = n.subscribe(active_car_topic, 1, &BehaviorController::active_car_callback, this);
 
         // Get mux indices
         n.getParam("joy_mux_idx", joy_mux_idx);
@@ -451,15 +448,6 @@ public:
 
     void imu_callback(const sensor_msgs::Imu & msg) {
 
-    }
-
-    /**
-     * Updates the active_car_idx which is a signal to indicate which car is currently active
-     * @param msg
-     */
-    void active_car_callback(const std_msgs::Int8& msg)
-    {
-        active_car_idx = msg.data;
     }
 
     static int muxid_count;

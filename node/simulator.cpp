@@ -31,6 +31,7 @@
 #include <cmath>
 #include <memory>
 #include <utility>
+#include <std_msgs/String.h>
 
 using namespace racecar_simulator;
 
@@ -68,6 +69,7 @@ private:
     // Listen for updates to the pose
     ros::Subscriber pose_sub;
     ros::Subscriber pose_rviz_sub;
+    ros::Subscriber key_sub;
 
     // Publish a scan, odometry, and imu data
     bool broadcast_transform;
@@ -102,6 +104,9 @@ private:
     double scan_fov;
     double scan_ang_incr;
 
+    // Active Car Index
+    size_t active_car_idx;
+
 public:
     // Unique id for each Racecar
     size_t rcid;
@@ -112,7 +117,7 @@ public:
     Racecar(): n(std::make_shared<ros::NodeHandle>(ros::NodeHandle("~")))
     {
         rcid = ++rcid_counter;
-
+        active_car_idx = 0;
         // Initialize car state and driving commands
         state = {.x=0, .y=0, .theta=0, .velocity=0, .steer_angle=0.0, .angular_velocity=0.0, .slip_angle=0.0, .st_dyn=false};
         accel = 0.0;
@@ -123,13 +128,13 @@ public:
 
         // Get the topic names
         std::string drive_topic, scan_topic, pose_topic, gt_pose_topic,
-        pose_rviz_topic, odom_topic, imu_topic;
+        pose_rviz_topic, odom_topic, imu_topic, keyboard_topic;
         n->getParam("drive_topic", drive_topic);
         drive_topic = drive_topic + "_" + std::to_string(rcid);
         n->getParam("scan_topic", scan_topic);
         scan_topic = scan_topic + "_" + std::to_string(rcid);
         n->getParam("pose_topic", pose_topic);
-//        pose_topic = pose_topic + "_" + std::to_string(rcid);
+        pose_topic = pose_topic + "_" + std::to_string(rcid);
         n->getParam("odom_topic", odom_topic);
         odom_topic = odom_topic + "_" + std::to_string(rcid);
         n->getParam("pose_rviz_topic", pose_rviz_topic);
@@ -138,6 +143,7 @@ public:
         imu_topic = imu_topic + "_" + std::to_string(rcid);
         n->getParam("ground_truth_pose_topic", gt_pose_topic);
         gt_pose_topic = gt_pose_topic + "_" + std::to_string(rcid);
+        n->getParam("keyboard_topic", keyboard_topic);
 
         // Get steering delay params
         n->getParam("buffer_length", buffer_length);
@@ -197,6 +203,8 @@ public:
         // Start a subscriber to listen to drive commands
         drive_sub = n->subscribe(drive_topic, 1, &Racecar::drive_callback, this);
 
+        key_sub = n->subscribe(keyboard_topic, 1, &Racecar::key_callback, this);
+
         // Start a subscriber to listen to pose messages
         pose_sub = n->subscribe(pose_topic, 1, &Racecar::pose_callback, this);
         pose_rviz_sub = n->subscribe(pose_rviz_topic, 1, &Racecar::pose_rviz_callback, this);
@@ -221,122 +229,123 @@ public:
 
     void update_pose(const ros::TimerEvent&)
     {
-        // simulate P controller
-        compute_accel(desired_speed);
-        double actual_ang = 0.0;
-        if (steering_buffer.size() < buffer_length)
+        if(active_car_idx == 0 || active_car_idx == rcid)
         {
-            steering_buffer.push_back(desired_steer_ang);
-            actual_ang = 0.0;
-        }
-        else
-        {
-            steering_buffer.insert(steering_buffer.begin(), desired_steer_ang);
-            actual_ang = steering_buffer.back();
-            steering_buffer.pop_back();
-        }
-        set_steer_angle_vel(compute_steer_vel(actual_ang));
-
-        // Update the pose
-        ros::Time timestamp = ros::Time::now();
-        double current_seconds = timestamp.toSec();
-        state = STKinematics::update(
-            state,
-            accel,
-            steer_angle_vel,
-            params,
-            current_seconds - previous_seconds);
-        state.velocity = std::min(std::max(state.velocity, -max_speed), max_speed);
-        state.steer_angle = std::min(std::max(state.steer_angle, -max_steering_angle), max_steering_angle);
-
-        previous_seconds = current_seconds;
-
-        /// Publish the pose as a transformation
-        pub_pose_transform(timestamp);
-        // publisher for map with obstacles
-        ros::Publisher map_pub;
-
-        // keep an original map for obstacles
-        nav_msgs::OccupancyGrid original_map;
-        nav_msgs::OccupancyGrid current_map;
-        /// Publish the steering angle as a transformation so the wheels move
-        pub_steer_ang_transform(timestamp);
-
-        // Make an odom message as well and publish it
-        pub_odom(timestamp);
-        // TODO: make and publish IMU message
-        pub_imu(timestamp);
-        /// KEEP in sim
-        // If we have a map, perform a scan
-        if (map_exists)
-        {
-            // Get the pose of the lidar, given the pose of base link
-            // (base link is the center of the rear axle)
-            Pose2D scan_pose{.x = state.x + scan_distance_to_base_link * std::cos(state.theta),
-                             .y = state.y + scan_distance_to_base_link * std::sin(state.theta),
-                             .theta = state.theta};
-
-            // Compute the scan from the lidar
-            std::vector<double> scan = scan_simulator.scan(scan_pose);
-
-            // Convert to float
-            std::vector<float> scan_(scan.size());
-            for (size_t i = 0; i < scan.size(); i++)
+            // simulate P controller
+            compute_accel(desired_speed);
+            double actual_ang = 0.0;
+            if (steering_buffer.size() < buffer_length)
             {
-                scan_[i] = scan[i];
+                steering_buffer.push_back(desired_steer_ang);
+                actual_ang = 0.0;
+            } else
+            {
+                steering_buffer.insert(steering_buffer.begin(), desired_steer_ang);
+                actual_ang = steering_buffer.back();
+                steering_buffer.pop_back();
             }
+            set_steer_angle_vel(compute_steer_vel(actual_ang));
 
-            // TTC Calculations are done here so the car can be halted in the simulator:
-            // to reset TTC
-            bool no_collision = true;
-            if (state.velocity != 0)
+            // Update the pose
+            ros::Time timestamp = ros::Time::now();
+            double current_seconds = timestamp.toSec();
+            state = STKinematics::update(
+                    state,
+                    accel,
+                    steer_angle_vel,
+                    params,
+                    current_seconds - previous_seconds);
+            state.velocity = std::min(std::max(state.velocity, -max_speed), max_speed);
+            state.steer_angle = std::min(std::max(state.steer_angle, -max_steering_angle), max_steering_angle);
+
+            previous_seconds = current_seconds;
+
+            /// Publish the pose as a transformation
+            pub_pose_transform(timestamp);
+            // publisher for map with obstacles
+            ros::Publisher map_pub;
+
+            // keep an original map for obstacles
+            nav_msgs::OccupancyGrid original_map;
+            nav_msgs::OccupancyGrid current_map;
+            /// Publish the steering angle as a transformation so the wheels move
+            pub_steer_ang_transform(timestamp);
+
+            // Make an odom message as well and publish it
+            pub_odom(timestamp);
+            // TODO: make and publish IMU message
+            pub_imu(timestamp);
+            /// KEEP in sim
+            // If we have a map, perform a scan
+            if (map_exists)
             {
-                for (size_t i = 0; i < scan_.size(); i++)
+                // Get the pose of the lidar, given the pose of base link
+                // (base link is the center of the rear axle)
+                Pose2D scan_pose{.x = state.x + scan_distance_to_base_link * std::cos(state.theta),
+                        .y = state.y + scan_distance_to_base_link * std::sin(state.theta),
+                        .theta = state.theta};
+
+                // Compute the scan from the lidar
+                std::vector<double> scan = scan_simulator.scan(scan_pose);
+
+                // Convert to float
+                std::vector<float> scan_(scan.size());
+                for (size_t i = 0; i < scan.size(); i++)
                 {
-                    // TTC calculations
+                    scan_[i] = scan[i];
+                }
 
-                    // calculate projected velocity
-                    double proj_velocity = state.velocity * cosines[i];
-                    double ttc = (scan_[i] - car_distances[i]) / proj_velocity;
-                    // if it's small enough to count as a collision
-                    if ((ttc < ttc_threshold) && (ttc >= 0.0))
+                // TTC Calculations are done here so the car can be halted in the simulator:
+                // to reset TTC
+                bool no_collision = true;
+                if (state.velocity != 0)
+                {
+                    for (size_t i = 0; i < scan_.size(); i++)
                     {
-                        if (!TTC)
+                        // TTC calculations
+
+                        // calculate projected velocity
+                        double proj_velocity = state.velocity * cosines[i];
+                        double ttc = (scan_[i] - car_distances[i]) / proj_velocity;
+                        // if it's small enough to count as a collision
+                        if ((ttc < ttc_threshold) && (ttc >= 0.0))
                         {
-                            first_ttc_actions();
+                            if (!TTC)
+                            {
+                                first_ttc_actions();
+                            }
+
+                            no_collision = false;
+                            TTC = true;
+
+                            ROS_INFO("Collision detected");
                         }
-
-                        no_collision = false;
-                        TTC = true;
-
-                        ROS_INFO("Collision detected");
                     }
                 }
+
+                // reset TTC
+                if (no_collision)
+                {
+                    TTC = false;
+                }
+
+                // Publish the laser message
+                sensor_msgs::LaserScan scan_msg;
+                scan_msg.header.stamp = timestamp;
+                scan_msg.header.frame_id = scan_frame;
+                scan_msg.angle_min = -scan_simulator.get_field_of_view() / 2.;
+                scan_msg.angle_max = scan_simulator.get_field_of_view() / 2.;
+                scan_msg.angle_increment = scan_simulator.get_angle_increment();
+                scan_msg.range_max = 100;
+                scan_msg.ranges = scan_;
+                scan_msg.intensities = scan_;
+
+                scan_pub.publish(scan_msg);
+                // Publish a transformation between base link and laser
+                pub_laser_link_transform(timestamp);
+
             }
-
-            // reset TTC
-            if (no_collision)
-            {
-                TTC = false;
-            }
-
-            // Publish the laser message
-            sensor_msgs::LaserScan scan_msg;
-            scan_msg.header.stamp = timestamp;
-            scan_msg.header.frame_id = scan_frame;
-            scan_msg.angle_min = -scan_simulator.get_field_of_view()/2.;
-            scan_msg.angle_max =  scan_simulator.get_field_of_view()/2.;
-            scan_msg.angle_increment = scan_simulator.get_angle_increment();
-            scan_msg.range_max = 100;
-            scan_msg.ranges = scan_;
-            scan_msg.intensities = scan_;
-
-            scan_pub.publish(scan_msg);
-            // Publish a transformation between base link and laser
-            pub_laser_link_transform(timestamp);
-
         }
-
     } // end of update_pose
 
 
@@ -416,25 +425,44 @@ public:
 
     void pose_callback(const geometry_msgs::PoseStamped & msg)
     {
-        state.x = msg.pose.position.x;
-        state.y = msg.pose.position.y;
-        geometry_msgs::Quaternion q = msg.pose.orientation;
-        tf2::Quaternion quat(q.x, q.y, q.z, q.w);
-        state.theta = tf2::impl::getYaw(quat);
+        if(active_car_idx == 0 || active_car_idx == rcid)
+        {
+            state.x = msg.pose.position.x;
+            state.y = msg.pose.position.y;
+            geometry_msgs::Quaternion q = msg.pose.orientation;
+            tf2::Quaternion quat(q.x, q.y, q.z, q.w);
+            state.theta = tf2::impl::getYaw(quat);
+        }
     }
 
     void pose_rviz_callback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr & msg)
     {
-        geometry_msgs::PoseStamped temp_pose;
-        temp_pose.header = msg->header;
-        temp_pose.pose = msg->pose.pose;
-        pose_callback(temp_pose);
+        if(active_car_idx == 0 || active_car_idx == rcid)
+        {
+            ROS_INFO("Updating Pose of Car %i", rcid);
+            geometry_msgs::PoseStamped temp_pose;
+            temp_pose.header = msg->header;
+            temp_pose.pose = msg->pose.pose;
+            pose_callback(temp_pose);
+        }
     }
 
     void drive_callback(const ackermann_msgs::AckermannDriveStamped & msg)
     {
-        desired_speed = msg.drive.speed;
-        desired_steer_ang = msg.drive.steering_angle;
+        if(active_car_idx == 0 || active_car_idx == rcid)
+        {
+            desired_speed = msg.drive.speed;
+            desired_steer_ang = msg.drive.steering_angle;
+        }
+    }
+
+    void key_callback(const std_msgs::String & msg)
+    {
+        if (std::isdigit(msg.data.at(0)))
+        {
+            active_car_idx = std::stoi(msg.data);
+            ROS_INFO("Current Active Car: %i", active_car_idx);
+        }
     }
 
     /// ---------------------- PUBLISHING HELPER FUNCTIONS ----------------------
@@ -478,6 +506,7 @@ public:
         {
             pose_pub.publish(ps);
         }
+
     }
 
     void pub_steer_ang_transform(ros::Time timestamp)

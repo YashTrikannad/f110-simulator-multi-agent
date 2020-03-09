@@ -102,7 +102,6 @@ pose_rviz_topic: "/initialpose"
 keyboard_topic: "/key"
 brake_bool_topic: "/brake_bool"
 mux_topic: "/mux"
-active_car_topic: "/active_car"
 
 # Topic names of various drive channels
 rand_drive_topic: "/rand_drive"

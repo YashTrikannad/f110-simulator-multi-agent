@@ -111,7 +111,7 @@ public:
     Racecar(std::shared_ptr<ros::NodeHandle> node_handle_ptr)
     {
         // Initialize the node handle
-        n = node_handle_ptr;
+        n = std::move(node_handle_ptr);
         rcid = rcid_counter++;
 
         // Initialize car state and driving commands
@@ -130,11 +130,11 @@ public:
         n->getParam("scan_topic", scan_topic);
         scan_topic = scan_topic + "_" + std::to_string(rcid);
         n->getParam("pose_topic", pose_topic);
-        pose_topic = pose_topic + "_" + std::to_string(rcid);
+//        pose_topic = pose_topic + "_" + std::to_string(rcid);
         n->getParam("odom_topic", odom_topic);
         odom_topic = odom_topic + "_" + std::to_string(rcid);
         n->getParam("pose_rviz_topic", pose_rviz_topic);
-        pose_rviz_topic = pose_rviz_topic + "_" + std::to_string(rcid);
+//        pose_rviz_topic = pose_rviz_topic + "_" + std::to_string(rcid);
         n->getParam("imu_topic", imu_topic);
         imu_topic = imu_topic + "_" + std::to_string(rcid);
         n->getParam("ground_truth_pose_topic", gt_pose_topic);
@@ -206,10 +206,9 @@ public:
         n->getParam("coll_threshold", thresh);
         n->getParam("ttc_threshold", ttc_threshold);
 
-        scan_ang_incr = scan_simulator.get_angle_increment();
-
         // Initialize a simulator of the laser scanner
         scan_simulator = ScanSimulator2D(scan_beams, scan_fov, scan_std_dev);
+        scan_ang_incr = scan_simulator.get_angle_increment();
 
         cosines = Precompute::get_cosines(scan_beams, -scan_fov/2.0, scan_ang_incr);
         car_distances = Precompute::get_car_distances(scan_beams, params.wheelbase, width, 
@@ -218,7 +217,7 @@ public:
         // steering delay buffer
         steering_buffer = std::vector<double>(buffer_length);
 
-        ROS_INFO("Racecar added to the simulator.");
+        ROS_INFO("Racecar %i added to the simulator.", static_cast<int>(rcid));
     }
 
     void update_pose(const ros::TimerEvent&)
@@ -554,13 +553,9 @@ int Racecar::rcid_counter = 0;
 class Simulator
 {
 public:
-    Simulator(std::shared_ptr<ros::NodeHandle> nh): n(std::move(nh)), racecars{Racecar(n), Racecar(n)},
+    Simulator(std::shared_ptr<ros::NodeHandle> nh): n(std::move(nh)), racecars{Racecar(n)},
     im_server("racecar_sim")
     {
-        for(auto i=0; i<racecars.size(); i++)
-        {
-            racecars[i].rcid = i;
-        }
         // Get obstacle size parameter
         n->getParam("obstacle_size", obstacle_size);
 
@@ -754,7 +749,7 @@ private:
     // Racecar Object
 //    Racecar racecar1;
 //    Racecar racecar2;
-    std::array<Racecar, 2> racecars;
+    std::array<Racecar, 1> racecars;
 
     // publisher for map with obstacles
     ros::Publisher map_pub;

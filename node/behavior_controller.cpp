@@ -84,19 +84,24 @@ private:
     double beginning_seconds;
     int collision_count=0;
 
+    // Unique muxid
+    int muxid;
 
 public:
     BehaviorController() {
         // Initialize the node handle
         n = ros::NodeHandle("~");
+        muxid = muxid_count++;
 
         // get topic names
         std::string scan_topic, odom_topic, imu_topic, joy_topic, keyboard_topic, brake_bool_topic, mux_topic;
         n.getParam("scan_topic", scan_topic);
+        scan_topic = scan_topic + "_" + std::to_string(muxid);
         n.getParam("odom_topic", odom_topic);
         n.getParam("imu_topic", imu_topic);
         n.getParam("joy_topic", joy_topic);
         n.getParam("mux_topic", mux_topic);
+        mux_topic = mux_topic + "_" + std::to_string(muxid);
         n.getParam("keyboard_topic", keyboard_topic);
         n.getParam("brake_bool_topic", brake_bool_topic);
 
@@ -372,12 +377,14 @@ public:
 
     }
 
-
+    static int muxid_count;
 };
+
+int BehaviorController::muxid_count = 0;
 
 int main(int argc, char ** argv) {
     ros::init(argc, argv, "behavior_controller");
-    BehaviorController bc;
+    std::array<BehaviorController, 1> bc;
     ros::spin();
     return 0;
 }

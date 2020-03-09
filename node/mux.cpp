@@ -50,16 +50,21 @@ private:
     double keyboard_speed;
     double keyboard_steer_ang;
 
+    // Unique muxid
+    int muxid;
 
 public:
-    Mux() {
+    Mux()
+    {
         // Initialize the node handle
         n = ros::NodeHandle("~");
-
+        muxid = muxid_count++;
         // get topic names
         std::string drive_topic, mux_topic, joy_topic, key_topic;
         n.getParam("drive_topic", drive_topic);
+        drive_topic = drive_topic + "_" + std::to_string(muxid);
         n.getParam("mux_topic", mux_topic);
+        mux_topic = mux_topic + "_" + std::to_string(muxid);
         n.getParam("joy_topic", joy_topic);
         n.getParam("keyboard_topic", key_topic);
 
@@ -233,9 +238,10 @@ public:
         }
     }
 
-
+    static int muxid_count;
 };
 
+int Mux::muxid_count = 0;
 
 /// Channel class method implementations
 
@@ -256,9 +262,10 @@ void Channel::drive_callback(const ackermann_msgs::AckermannDriveStamped & msg) 
     }
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char ** argv)
+{
     ros::init(argc, argv, "mux_controller");
-    Mux mx;
+    std::array<Mux, 1> mx;
     ros::spin();
     return 0;
 }

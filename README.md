@@ -3,6 +3,16 @@
 This is a lightweight 2D simulator of the UPenn F1/10 Racecar.
 It can be built with ROS, or it can be used as a standalone C++ library.
 
+**NOTE:** we are currently developing a multi-agent module and it is not currently fully featured. If you observe any errors in the multi agent version, you may change your branch to single agent as it is completely functional.
+```
+cd f110-simulator-multi-agent
+git checkout origin/single_agent
+```
+For the latest development on the multi agent branch
+```
+cd f110-simulator-multi-agent
+git checkout origin/multi_agent
+```
 **NOTE:** we are working on more thorough documentation, but for now please read this document.
 
 ## ROS
@@ -27,7 +37,7 @@ The full list of dependencies can be found in the ```package.xml``` file.
 To install the simulator package, clone the repo with the simulator and starter code into your catkin workspace:
 
     cd ~/catkin_ws/src
-    git clone https://github.com/f1tenth/f110_ros.git
+    git clone https://github.com/YashTrikannad/f110-simulator-multi-agent.git
     
 Then run ```catkin_make``` to build it:
 

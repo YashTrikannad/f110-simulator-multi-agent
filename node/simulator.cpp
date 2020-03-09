@@ -30,6 +30,7 @@
 #include <iostream>
 #include <cmath>
 #include <memory>
+#include <utility>
 
 using namespace racecar_simulator;
 
@@ -101,6 +102,9 @@ private:
     double scan_ang_incr;
 
 public:
+    // Unique id for each Racecar
+    size_t rcid;
+
     // A simulator of the laser
     ScanSimulator2D scan_simulator;
 
@@ -108,6 +112,7 @@ public:
     {
         // Initialize the node handle
         n = node_handle_ptr;
+        rcid = rcid_counter++;
 
         // Initialize car state and driving commands
         state = {.x=0, .y=0, .theta=0, .velocity=0, .steer_angle=0.0, .angular_velocity=0.0, .slip_angle=0.0, .st_dyn=false};
@@ -121,12 +126,19 @@ public:
         std::string drive_topic, scan_topic, pose_topic, gt_pose_topic,
         pose_rviz_topic, odom_topic, imu_topic;
         n->getParam("drive_topic", drive_topic);
+        drive_topic = drive_topic + "_" + std::to_string(rcid);
         n->getParam("scan_topic", scan_topic);
+        scan_topic = scan_topic + "_" + std::to_string(rcid);
         n->getParam("pose_topic", pose_topic);
+        pose_topic = pose_topic + "_" + std::to_string(rcid);
         n->getParam("odom_topic", odom_topic);
+        odom_topic = odom_topic + "_" + std::to_string(rcid);
         n->getParam("pose_rviz_topic", pose_rviz_topic);
+        pose_rviz_topic = pose_rviz_topic + "_" + std::to_string(rcid);
         n->getParam("imu_topic", imu_topic);
+        imu_topic = imu_topic + "_" + std::to_string(rcid);
         n->getParam("ground_truth_pose_topic", gt_pose_topic);
+        gt_pose_topic = gt_pose_topic + "_" + std::to_string(rcid);
 
         // Get steering delay params
         n->getParam("buffer_length", buffer_length);
@@ -533,13 +545,22 @@ public:
         imu_pub.publish(imu);
     }
 
+    // Counter for the number of racecars created
+    static int rcid_counter;
 };
+
+int Racecar::rcid_counter = 0;
 
 class Simulator
 {
 public:
-    Simulator(std::shared_ptr<ros::NodeHandle> n): n(n), racecar(n), im_server("racecar_sim")
+    Simulator(std::shared_ptr<ros::NodeHandle> nh): n(std::move(nh)), racecars{Racecar(n), Racecar(n)},
+    im_server("racecar_sim")
     {
+        for(auto i=0; i<racecars.size(); i++)
+        {
+            racecars[i].rcid = i;
+        }
         // Get obstacle size parameter
         n->getParam("obstacle_size", obstacle_size);
 
@@ -702,13 +723,16 @@ public:
         }
 
         // Send the map to the scanner
-        racecar.scan_simulator.set_map(
-                map,
-                height,
-                width,
-                resolution,
-                origin,
-                map_free_threshold);
+        for(auto& racecar: racecars)
+        {
+            racecar.scan_simulator.set_map(
+                    map,
+                    height,
+                    width,
+                    resolution,
+                    origin,
+                    map_free_threshold);
+        }
 
         map_exists = true;
     }
@@ -728,7 +752,9 @@ private:
     std::shared_ptr<ros::NodeHandle> n;
 
     // Racecar Object
-    Racecar racecar;
+//    Racecar racecar1;
+//    Racecar racecar2;
+    std::array<Racecar, 2> racecars;
 
     // publisher for map with obstacles
     ros::Publisher map_pub;

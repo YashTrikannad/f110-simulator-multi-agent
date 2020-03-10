@@ -14,10 +14,9 @@
 
 #include "f110_simulator/car_state.hpp"
 #include "f110_simulator/precompute.hpp"
+#include "f110_simulator/config.h"
 
 using namespace racecar_simulator;
-
-static const size_t n_agents = 2;
 
 class BehaviorController {
 private:
@@ -458,7 +457,7 @@ int BehaviorController::muxid_count = 0;
 int main(int argc, char ** argv)
 {
     ros::init(argc, argv, "behavior_controller");
-    std::array<BehaviorController, n_agents> bc;
+    std::array<BehaviorController, config::n_agents> bc;
     ros::spin();
     return 0;
 }

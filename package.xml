@@ -1,11 +1,12 @@
 <?xml version="1.0"?>
 <package>
   <name>f110_simulator</name>
-  <version>0.0.1</version>
-  <description>A simulator of the F1/10 racecar.</description>
+  <version>0.0.2</version>
+  <description>A simulator of the F1/10 racecar with support for mutliple agents.</description>
 
   <maintainer email="billyzheng.bz@gmail.com">Hongrui Zheng</maintainer>
   <maintainer email="jauckley@seas.upenn.edu">Joe Auckley</maintainer>
+  <maintainer email="yasht@seas.upenn.edu">Yash Trikannad</maintainer>
   <!-- Thank you: https://github.com/mit-racecar/racecar_simulator -->
 
   <license>MIT</license>

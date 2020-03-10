@@ -1,6 +1,5 @@
 #include <ros/ros.h>
 
-// interactive marker
 #include <interactive_markers/interactive_marker_server.h>
 
 #include <tf2/impl/utils.h>
@@ -23,6 +22,7 @@
 
 #include "f110_simulator/car_state.hpp"
 #include "f110_simulator/car_params.hpp"
+#include "f110_simulator/config.h"
 #include "f110_simulator/ks_kinematics.hpp"
 #include "f110_simulator/st_kinematics.hpp"
 #include "f110_simulator/precompute.hpp"
@@ -35,7 +35,6 @@
 
 using namespace racecar_simulator;
 
-static const size_t n_agents = 2;
 bool map_exists = false;
 
 class Racecar {
@@ -138,7 +137,6 @@ public:
         n->getParam("odom_topic", odom_topic);
         odom_topic = odom_topic + "_" + std::to_string(rcid);
         n->getParam("pose_rviz_topic", pose_rviz_topic);
-//        pose_rviz_topic = pose_rviz_topic + "_" + std::to_string(rcid);
         n->getParam("imu_topic", imu_topic);
         imu_topic = imu_topic + "_" + std::to_string(rcid);
         n->getParam("ground_truth_pose_topic", gt_pose_topic);
@@ -776,7 +774,7 @@ private:
     std::shared_ptr<ros::NodeHandle> n;
 
     // Racecar Object
-    std::array<Racecar, n_agents> racecars;
+    std::array<Racecar, config::n_agents> racecars;
 
     // publisher for map with obstacles
     ros::Publisher map_pub;

@@ -11,8 +11,7 @@
 #include <std_msgs/String.h>
 
 #include "f110_simulator/channel.h"
-
-static const size_t n_agents = 2;
+#include "f110_simulator/config.h"
 
 class Mux {
 private:
@@ -129,6 +128,7 @@ public:
         int nav_mux_idx;
         std::string nav_drive_topic;
         n.getParam("nav_drive_topic", nav_drive_topic);
+        nav_drive_topic = nav_drive_topic + "_" + std::to_string(muxid);
         n.getParam("nav_mux_idx", nav_mux_idx);
         add_channel(nav_drive_topic, drive_topic, nav_mux_idx);
 
@@ -273,7 +273,7 @@ void Channel::drive_callback(const ackermann_msgs::AckermannDriveStamped & msg)
 int main(int argc, char ** argv)
 {
     ros::init(argc, argv, "mux_controller");
-    std::array<Mux, n_agents> mx;
+    std::array<Mux, config::n_agents> mx;
     ros::spin();
     return 0;
 }

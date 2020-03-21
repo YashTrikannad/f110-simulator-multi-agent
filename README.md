@@ -183,4 +183,60 @@ The parameters listed below can be modified in the ```params.yaml``` file.
 
 ## Implementation Details
 
+# Multi Agent Simulator Help
+
+## Adding Cars in the simulator
+
+By default, the settings are set for allowing two cars. The following changes need to be made to run *N* cars:
+
+1.  **Launch File** (launch/racecar_model.launch)
+```
+<?xml version="1.0"?>
+<launch>
+
+  <!-- group for racecar1 -->
+  <group ns="racecar1">
+    <!-- Open the model file -->
+    <arg name="racecar_xacro" default="$(find f110_simulator)/racecar.xacro"/>
+    <param name="tf_prefix" value="racecar1"/>
+    <param name="robot_description" command="xacro --inorder '$(arg racecar_xacro)'"/>
+    <!-- Add the transformations -->
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+  </group>
+
+  <group ns="racecar2">
+    <!-- Open the model file -->
+    <arg name="racecar_xacro" default="$(find f110_simulator)/racecar.xacro"/>
+    <param name="tf_prefix" value="racecar2"/>
+    <param name="robot_description" command="xacro --inorder '$(arg racecar_xacro)'"/>
+    <!-- Add the transformations -->
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+  </group>
+
+</launch>
+```
+Currently, the launch file launches two cars as seen above. If you want to add another another car, you will need to add a new workspace *racecar_* where _ will be a number representing the racecar's id (Needs to be in increasing order). 
+
+
+2.  **Config File** (include/f110_simulator/config.h)
+```
+static constexpr size_t n_agents = 2;
+```
+Here simply change the number of agents to *N*, the number of cars you previously are launching in the launch file.
+
+
+3.  **Rviz Settings** 
+You will need to manually add the required topics for the new cars from the RVIZ window. The major topics you'll be needing are for LaserScan and RobotModel. Remember to save it if you plan to use the current rviz configuration later to avoid repeating this process. 
+
+## Using and Manipulating Multiple Agents in the simulator
+
+1.  Activating and Selecting Cars
+    -   To activate a certain car, press the racecar's id. This is useful when you want to manually move a car using *2d Pose Estimate* in rviz
+    -   Press 0 when you want all cars to be active. By default on launching all cars are active. 
+    
+2.  Sending Commands to the Cars (Make sure all cars are in active mode i.e 0 has been pressed)
+    -   The topics for publishing drive messages are postfixed by _rcid (where rcid is the racecar id).
+    -   To publish drive messages, publish to /drive_1, /drive_2, etc.
+    -   To subscribe to LaserScan messages, subscribe to /scan_1, /scan_2, etc.
+    -   Map is available on /map
 

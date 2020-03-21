@@ -11,10 +11,11 @@
 #include <sensor_msgs/Imu.h>
 #include <std_msgs/Int32MultiArray.h>
 
-#include <sensor_msgs/LaserScan.h>
+#include <f110_simulator/Pose2dArray.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PointStamped.h>
+#include <sensor_msgs/LaserScan.h>
 
 #include "f110_simulator/pose_2d.hpp"
 #include "f110_simulator/ackermann_kinematics.hpp"
@@ -72,6 +73,7 @@ private:
     ros::Subscriber pose_sub;
     ros::Subscriber pose_rviz_sub;
     ros::Subscriber key_sub;
+    ros::Subscriber all_pose_sub;
 
     // Publish a scan, odometry, and imu data
     bool broadcast_transform;
@@ -80,6 +82,7 @@ private:
     ros::Publisher pose_pub;
     ros::Publisher odom_pub;
     ros::Publisher imu_pub;
+    ros::Publisher all_pose_pub;
 
     // safety margin for collisions
     double thresh;
@@ -113,6 +116,7 @@ private:
     double scan_fov_;
     double scan_angle_res_;
 
+    f110_simulator::Pose2dArray opponent_poses;
     std::vector<Pose2D> opponent_poses_;
 
 public:
@@ -136,7 +140,7 @@ public:
 
         // Get the topic names
         std::string drive_topic, scan_topic, pose_topic, gt_pose_topic,
-        pose_rviz_topic, odom_topic, imu_topic, keyboard_topic;
+        pose_rviz_topic, odom_topic, imu_topic, keyboard_topic, all_pose_topic;
         n->getParam("drive_topic", drive_topic);
         drive_topic = drive_topic + "_" + std::to_string(rcid);
         n->getParam("scan_topic", scan_topic);
@@ -196,6 +200,7 @@ public:
         scan_fov_ = scan_fov;
         scan_angle_res_ = scan_beams_/scan_fov_;
         n->getParam("scan_std_dev", scan_std_dev);
+        n->getParam("all_pose_topic", all_pose_topic);
 
         // Make a publisher for laser scan messages
         scan_pub = n->advertise<sensor_msgs::LaserScan>(scan_topic, 1);
@@ -209,6 +214,8 @@ public:
         // Make a publisher for ground truth pose
         pose_pub = n->advertise<geometry_msgs::PoseStamped>(gt_pose_topic, 1);
 
+        all_pose_pub = n->advertise<f110_simulator::Pose2dArray>(all_pose_topic, 1);
+
         // Start a timer to output the pose
         update_pose_timer = n->createTimer(ros::Duration(update_pose_rate), &Racecar::update_pose, this);
 
@@ -219,6 +226,9 @@ public:
 
         // Start a subscriber to listen to pose messages
         pose_sub = n->subscribe(pose_topic, 1, &Racecar::pose_callback, this);
+
+        all_pose_sub = n->subscribe(all_pose_topic, 1, &Racecar::all_pose_callback, this);
+
         pose_rviz_sub = n->subscribe(pose_rviz_topic, 1, &Racecar::pose_rviz_callback, this);
 
         // get collision safety margin
@@ -236,8 +246,93 @@ public:
         // steering delay buffer
         steering_buffer = std::vector<double>(buffer_length);
 
+        for(size_t i=0; i<config::n_agents; i++)
+        {
+            opponent_poses.poses.emplace_back(f110_simulator::Pose2d{});
+        }
+
         ROS_INFO("Racecar %i added to the simulator.", static_cast<int>(rcid));
     }
+
+    /// --------------------- CAR INTERACTION SCAN ---------------------
+
+    static double cross(Eigen::Vector2d v1, Eigen::Vector2d v2)
+    {
+        return v1(0) * v2(1) - v1(1) * v2(0);
+    }
+
+    bool are_collinear(Eigen::Vector2d pt_a, Eigen::Vector2d pt_b, Eigen::Vector2d pt_c)
+    {
+        double tol = 1e-8;
+        auto ba = pt_b - pt_a;
+        auto ca = pt_a - pt_c;
+        bool col = (std::fabs(cross(ba, ca)) < tol);
+        return col;
+    }
+
+    double get_range(const Pose2D &pose, double beam_theta, Eigen::Vector2d la, Eigen::Vector2d lb)
+    {
+        Eigen::Vector2d o {pose.x, pose.y};
+        // Eigen::Vector2d la {line_segment_a(0), line_segment_a(1)};
+        // Eigen::Vector2d lb {line_segment_b(0), line_segment_b(1)};
+        Eigen::Vector2d v1 = o - la;
+        Eigen::Vector2d v2 = lb - la;
+        Eigen::Vector2d v3 {std::cos(beam_theta + PI/2.0), std::sin(beam_theta + PI/2.0)};    double denom = v2.dot(v3);    double x = INFINITY;    if (std::fabs(denom) > 0.0) {
+            double d1 = cross(v2, v1) / denom;
+            double d2 = v1.dot(v3) / denom;
+            if (d1 >= 0.0 && d2 >= 0.0 && d2 <= 1.0) {
+                x = d1;
+            }
+        } else if (are_collinear(o, la, lb)) {
+            double dist_a = (la - o).norm();
+            double dist_b = (lb - o).norm();
+            x = std::min(dist_a, dist_b);
+        }
+        return x;
+    }
+
+    void ray_cast_opponents(std::vector<float> &scan, const Pose2D &scan_pose)
+    {
+        for (size_t j=0; j<config::n_agents; j++)
+        {
+            if(j == (rcid-1))
+            {
+                continue;
+            }
+            // get bounding box of the other cars
+            double x =  opponent_poses.poses[j].x;
+            double y = opponent_poses.poses[j].y;
+            double theta = opponent_poses.poses[j].theta;
+
+            Eigen::Vector2d diff_x {std::cos(theta), std::sin(theta)};
+            Eigen::Vector2d diff_y {-std::sin(theta), std::cos(theta)};
+            diff_x = ((params.l_r+params.l_f)/2) * diff_x;
+            diff_y = ((params.l_r+params.l_f)/2) * diff_y;
+            auto c1 = diff_x - diff_y;
+            auto c2 = diff_x + diff_y;
+            auto c3 = diff_y - diff_x;
+            auto c4 = -diff_x - diff_y;
+            Eigen::Vector2d corner1 {x+c1(0), y+c1(1)};
+            Eigen::Vector2d corner2 {x+c2(0), y+c2(1)};
+            Eigen::Vector2d corner3 {x+c3(0), y+c3(1)};
+            Eigen::Vector2d corner4 {x+c4(0), y+c4(1)};
+            std::vector<Eigen::Vector2d> bounding_boxes {corner1, corner2, corner3, corner4, corner1};        // modify scan
+            for (size_t i=0; i < scan_beams_; i++)
+            {
+                double current_scan_angle = (-scan_fov_/2) + (i*scan_angle_res_);
+                for (size_t j=0; j<4; j++)
+                {
+                    double range = get_range(scan_pose, scan_pose.theta + current_scan_angle, bounding_boxes[j], bounding_boxes[j+1]);
+                    if (range < scan[i])
+                    {
+                        scan[i] = range;
+                    }
+                }
+            }
+        }
+    }
+
+    /// --------------------------- UPDATE POSE -----------------------------
 
     void update_pose(const ros::TimerEvent&)
     {
@@ -341,6 +436,13 @@ public:
                     TTC = false;
                 }
 
+                // Add opponents into the scan
+                Pose2D current_pose{};
+                current_pose.x = state.x;
+                current_pose.y = state.y;
+                current_pose.theta = state.theta;
+                ray_cast_opponents(scan_, current_pose);
+
                 // Publish the laser message
                 sensor_msgs::LaserScan scan_msg;
                 scan_msg.header.stamp = timestamp;
@@ -361,7 +463,7 @@ public:
     } // end of update_pose
 
 
-        /// ---------------------- GENERAL HELPER FUNCTIONS ----------------------
+    /// ---------------------- GENERAL HELPER FUNCTIONS ----------------------
 
     void first_ttc_actions() {
         // completely stop vehicle
@@ -433,82 +535,9 @@ public:
         }
     }
 
-    /// --------------------- CAR INTERACTION SCAN ---------------------
-
-    static double cross(Eigen::Vector2d v1, Eigen::Vector2d v2)
-    {
-        return v1(0) * v2(1) - v1(1) * v2(0);
-    }
-
-    bool are_collinear(Eigen::Vector2d pt_a, Eigen::Vector2d pt_b, Eigen::Vector2d pt_c)
-    {
-        double tol = 1e-8;
-        auto ba = pt_b - pt_a;
-        auto ca = pt_a - pt_c;
-        bool col = (std::fabs(cross(ba, ca)) < tol);
-        return col;
-    }
-
-    double get_range(const Pose2D &pose, double beam_theta, Eigen::Vector2d la, Eigen::Vector2d lb)
-    {
-        Eigen::Vector2d o {pose.x, pose.y};
-        // Eigen::Vector2d la {line_segment_a(0), line_segment_a(1)};
-        // Eigen::Vector2d lb {line_segment_b(0), line_segment_b(1)};
-        Eigen::Vector2d v1 = o - la;
-        Eigen::Vector2d v2 = lb - la;
-        Eigen::Vector2d v3 {std::cos(beam_theta + PI/2.0), std::sin(beam_theta + PI/2.0)};    double denom = v2.dot(v3);    double x = INFINITY;    if (std::fabs(denom) > 0.0) {
-            double d1 = cross(v2, v1) / denom;
-            double d2 = v1.dot(v3) / denom;
-            if (d1 >= 0.0 && d2 >= 0.0 && d2 <= 1.0) {
-                x = d1;
-            }
-        } else if (are_collinear(o, la, lb)) {
-            double dist_a = (la - o).norm();
-            double dist_b = (lb - o).norm();
-            x = std::min(dist_a, dist_b);
-        }
-        return x;
-    }
-
-    void ray_cast_opponents(std::vector<double> &scan, const Pose2D &scan_pose)
-    {
-        for (const auto& op_pose : opponent_poses_)
-        {
-            // get bounding box of the other cars
-            double x = op_pose.x;
-            double y = op_pose.y;
-            double theta = op_pose.theta;
-            Eigen::Vector2d diff_x {std::cos(theta), std::sin(theta)};
-            Eigen::Vector2d diff_y {-std::sin(theta), std::cos(theta)};
-            diff_x = ((params.l_r+params.l_f)/2) * diff_x;
-            diff_y = ((params.l_r+params.l_f)/2) * diff_y;
-            auto c1 = diff_x - diff_y;
-            auto c2 = diff_x + diff_y;
-            auto c3 = diff_y - diff_x;
-            auto c4 = -diff_x - diff_y;
-            Eigen::Vector2d corner1 {x+c1(0), y+c1(1)};
-            Eigen::Vector2d corner2 {x+c2(0), y+c2(1)};
-            Eigen::Vector2d corner3 {x+c3(0), y+c3(1)};
-            Eigen::Vector2d corner4 {x+c4(0), y+c4(1)};
-            std::vector<Eigen::Vector2d> bounding_boxes {corner1, corner2, corner3, corner4, corner1};        // modify scan
-            for (size_t i=0; i < scan_beams_; i++)
-            {
-                double current_scan_angle = (-scan_fov_/2) + (i*scan_angle_res_);
-                for (size_t j=0; j<4; j++)
-                {
-                    double range = get_range(scan_pose, scan_pose.theta + current_scan_angle, bounding_boxes[j], bounding_boxes[j+1]);
-                    if (range < scan[i])
-                    {
-                        scan[i] = range;
-                    }
-                }
-            }
-        }
-    }
-
     /// ---------------------- CALLBACK FUNCTIONS ----------------------
 
-    void pose_callback(const geometry_msgs::PoseStamped & msg)
+    void pose_callback(const geometry_msgs::PoseStamped& msg)
     {
         if(active_car_idx == 0 || active_car_idx == rcid)
         {
@@ -517,6 +546,22 @@ public:
             geometry_msgs::Quaternion q = msg.pose.orientation;
             tf2::Quaternion quat(q.x, q.y, q.z, q.w);
             state.theta = tf2::impl::getYaw(quat);
+            f110_simulator::Pose2d current_state;
+            current_state.x = state.x;
+            current_state.y = state.y;
+            current_state.theta = state.theta;
+            opponent_poses.poses.at(rcid-1) = current_state;
+        }
+    }
+
+    void all_pose_callback(const f110_simulator::Pose2dArray& all_poses)
+    {
+        for(size_t i=0; i<config::n_agents; i++)
+        {
+            if(i != (rcid-1))
+            {
+                opponent_poses.poses.at(i) = all_poses.poses.at(i);
+            }
         }
     }
 

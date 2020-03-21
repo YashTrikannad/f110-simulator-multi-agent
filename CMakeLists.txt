@@ -60,8 +60,15 @@ if(DEFINED CATKIN_DEVEL_PREFIX)
     message_generation
     )
 
+   add_message_files(
+     FILES
+     Pose2d.msg
+     Pose2dArray.msg
+   )
+
   generate_messages(
     DEPENDENCIES
+    geometry_msgs
     std_msgs
     nav_msgs
     sensor_msgs

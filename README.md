@@ -6,7 +6,7 @@ It can be built with ROS, or it can be used as a standalone C++ library.
 <p align="center"><img src="media/multi_agent.png" width="400" height="600">
 </p>
 
-**NOTE:** The multi agent mode . If you observe any errors in the multi agent version, please raise an issue here.
+**NOTE:** The multi agent mode has been newly developed. If you observe any errors in the multi agent version, please raise an issue here. If you only require a single car for your application, you can switch to the single agent branch.
 ```
 cd f110-simulator-multi-agent
 git checkout origin/single_agent

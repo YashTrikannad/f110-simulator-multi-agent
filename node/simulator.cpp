@@ -30,6 +30,7 @@
 
 #include <iostream>
 #include <cmath>
+#include <limits>
 #include <memory>
 #include <utility>
 #include <std_msgs/String.h>
@@ -113,11 +114,8 @@ private:
     size_t active_car_idx;
 
     int scan_beams_;
-    double scan_fov_;
-    double scan_angle_res_;
 
-    f110_simulator::Pose2dArray opponent_poses;
-    std::vector<Pose2D> opponent_poses_;
+    f110_simulator::Pose2dArray all_poses;
 
 public:
     // Unique id for each Racecar
@@ -197,8 +195,6 @@ public:
         n->getParam("scan_beams", scan_beams);
         scan_beams_ = scan_beams;
         n->getParam("scan_field_of_view", scan_fov);
-        scan_fov_ = scan_fov;
-        scan_angle_res_ = scan_beams_/scan_fov_;
         n->getParam("scan_std_dev", scan_std_dev);
         n->getParam("all_pose_topic", all_pose_topic);
 
@@ -248,7 +244,7 @@ public:
 
         for(size_t i=0; i<config::n_agents; i++)
         {
-            opponent_poses.poses.emplace_back(f110_simulator::Pose2d{});
+            all_poses.poses.emplace_back(f110_simulator::Pose2d{});
         }
 
         ROS_INFO("Racecar %i added to the simulator.", static_cast<int>(rcid));
@@ -256,12 +252,14 @@ public:
 
     /// --------------------- CAR INTERACTION SCAN ---------------------
 
-    static double cross(Eigen::Vector2d v1, Eigen::Vector2d v2)
+    static double cross(const Eigen::Vector2d& v1, const Eigen::Vector2d& v2)
     {
         return v1(0) * v2(1) - v1(1) * v2(0);
     }
 
-    bool are_collinear(Eigen::Vector2d pt_a, Eigen::Vector2d pt_b, Eigen::Vector2d pt_c)
+    bool are_collinear(const Eigen::Vector2d& pt_a,
+            const Eigen::Vector2d& pt_b,
+            const Eigen::Vector2d& pt_c)
     {
         double tol = 1e-8;
         auto ba = pt_b - pt_a;
@@ -270,20 +268,25 @@ public:
         return col;
     }
 
-    double get_range(const Pose2D &pose, double beam_theta, Eigen::Vector2d la, Eigen::Vector2d lb)
+    double get_range(const Pose2D &pose, double beam_theta, Eigen::Vector2d& la, Eigen::Vector2d& lb)
     {
         Eigen::Vector2d o {pose.x, pose.y};
-        // Eigen::Vector2d la {line_segment_a(0), line_segment_a(1)};
-        // Eigen::Vector2d lb {line_segment_b(0), line_segment_b(1)};
         Eigen::Vector2d v1 = o - la;
         Eigen::Vector2d v2 = lb - la;
-        Eigen::Vector2d v3 {std::cos(beam_theta + PI/2.0), std::sin(beam_theta + PI/2.0)};    double denom = v2.dot(v3);    double x = INFINITY;    if (std::fabs(denom) > 0.0) {
+        Eigen::Vector2d v3 {std::cos(beam_theta + PI/2.0), std::sin(beam_theta + PI/2.0)};
+        double denom = v2.dot(v3);
+        double x = std::numeric_limits<double>::max();
+        if (std::fabs(denom) > 0.0)
+        {
             double d1 = cross(v2, v1) / denom;
             double d2 = v1.dot(v3) / denom;
-            if (d1 >= 0.0 && d2 >= 0.0 && d2 <= 1.0) {
+            if (d1 >= 0.0 && d2 >= 0.0 && d2 <= 1.0)
+            {
                 x = d1;
             }
-        } else if (are_collinear(o, la, lb)) {
+        }
+        else if (are_collinear(o, la, lb))
+        {
             double dist_a = (la - o).norm();
             double dist_b = (lb - o).norm();
             x = std::min(dist_a, dist_b);
@@ -293,21 +296,24 @@ public:
 
     void ray_cast_opponents(std::vector<float> &scan, const Pose2D &scan_pose)
     {
-        for (size_t j=0; j<config::n_agents; j++)
+        for (size_t n_agent=0; n_agent<config::n_agents; n_agent++)
         {
-            if(j == (rcid-1))
-            {
-                continue;
-            }
+            if(n_agent == (rcid-1)) continue;
+            ROS_DEBUG("Ray Casting for %i on %i", static_cast<int>(rcid), static_cast<int>(n_agent+1));
+
             // get bounding box of the other cars
-            double x =  opponent_poses.poses[j].x;
-            double y = opponent_poses.poses[j].y;
-            double theta = opponent_poses.poses[j].theta;
+            double x =  all_poses.poses[n_agent].x;
+            double y = all_poses.poses[n_agent].y;
+            double theta = all_poses.poses[n_agent].theta;
+
+            ROS_DEBUG("opponent x: %f", x);
+            ROS_DEBUG("opponent y: %f", y);
+            ROS_DEBUG("opponent theta: %f", theta);
 
             Eigen::Vector2d diff_x {std::cos(theta), std::sin(theta)};
             Eigen::Vector2d diff_y {-std::sin(theta), std::cos(theta)};
-            diff_x = ((params.l_r+params.l_f)/2) * diff_x;
-            diff_y = ((params.l_r+params.l_f)/2) * diff_y;
+            diff_x = (((params.l_r+params.l_f))/2) * diff_x;
+            diff_y = (params.wheelbase/2) * diff_y;
             auto c1 = diff_x - diff_y;
             auto c2 = diff_x + diff_y;
             auto c3 = diff_y - diff_x;
@@ -316,15 +322,21 @@ public:
             Eigen::Vector2d corner2 {x+c2(0), y+c2(1)};
             Eigen::Vector2d corner3 {x+c3(0), y+c3(1)};
             Eigen::Vector2d corner4 {x+c4(0), y+c4(1)};
-            std::vector<Eigen::Vector2d> bounding_boxes {corner1, corner2, corner3, corner4, corner1};        // modify scan
+            std::vector<Eigen::Vector2d> bounding_boxes{corner1, corner2, corner3, corner4, corner1};
+            // modify scan
+            const auto angle_increment = scan_simulator.get_angle_increment();
+            const auto fov = scan_simulator.get_field_of_view();
             for (size_t i=0; i < scan_beams_; i++)
             {
-                double current_scan_angle = (-scan_fov_/2) + (i*scan_angle_res_);
+                double current_scan_angle = (-fov/2.) + (i*angle_increment);
+                ROS_DEBUG("current_angle: %f", current_scan_angle);
                 for (size_t j=0; j<4; j++)
                 {
                     double range = get_range(scan_pose, scan_pose.theta + current_scan_angle, bounding_boxes[j], bounding_boxes[j+1]);
                     if (range < scan[i])
                     {
+                        ROS_DEBUG("Detected Opponent Car!");
+                        ROS_DEBUG("The range is %f and previous range is %f", range, scan[i]);
                         scan[i] = range;
                     }
                 }
@@ -436,6 +448,12 @@ public:
                     TTC = false;
                 }
 
+                f110_simulator::Pose2d current_state;
+                current_state.x = state.x;
+                current_state.y = state.y;
+                current_state.theta = state.theta;
+                all_poses.poses.at(rcid - 1) = current_state;
+
                 // Add opponents into the scan
                 Pose2D current_pose{};
                 current_pose.x = state.x;
@@ -455,6 +473,7 @@ public:
                 scan_msg.intensities = scan_;
 
                 scan_pub.publish(scan_msg);
+                all_pose_pub.publish(all_poses);
                 // Publish a transformation between base link and laser
                 pub_laser_link_transform(timestamp);
 
@@ -546,21 +565,22 @@ public:
             geometry_msgs::Quaternion q = msg.pose.orientation;
             tf2::Quaternion quat(q.x, q.y, q.z, q.w);
             state.theta = tf2::impl::getYaw(quat);
-            f110_simulator::Pose2d current_state;
-            current_state.x = state.x;
-            current_state.y = state.y;
-            current_state.theta = state.theta;
-            opponent_poses.poses.at(rcid-1) = current_state;
+
+            f110_simulator::Pose2d current_pose;
+            current_pose.theta=state.theta;
+            current_pose.x=state.x;
+            current_pose.y=state.y;
+            all_poses.poses.at(rcid - 1) = current_pose;
         }
     }
 
-    void all_pose_callback(const f110_simulator::Pose2dArray& all_poses)
+    void all_pose_callback(const f110_simulator::Pose2dArray& all_poses_update)
     {
         for(size_t i=0; i<config::n_agents; i++)
         {
             if(i != (rcid-1))
             {
-                opponent_poses.poses.at(i) = all_poses.poses.at(i);
+                all_poses.poses.at(i) = all_poses_update.poses.at(i);
             }
         }
     }

@@ -33,6 +33,9 @@
 #include <utility>
 #include <std_msgs/String.h>
 
+#include <Eigen/Core>
+#include <Eigen/Dense>
+
 using namespace racecar_simulator;
 
 bool map_exists = false;
@@ -105,6 +108,12 @@ private:
 
     // Active Car Index
     size_t active_car_idx;
+
+    int scan_beams_;
+    double scan_fov_;
+    double scan_angle_res_;
+
+    std::vector<Pose2D> opponent_poses_;
 
 public:
     // Unique id for each Racecar
@@ -182,7 +191,10 @@ public:
         n->getParam("publish_ground_truth_pose", pub_gt_pose);
 
         n->getParam("scan_beams", scan_beams);
+        scan_beams_ = scan_beams;
         n->getParam("scan_field_of_view", scan_fov);
+        scan_fov_ = scan_fov;
+        scan_angle_res_ = scan_beams_/scan_fov_;
         n->getParam("scan_std_dev", scan_std_dev);
 
         // Make a publisher for laser scan messages
@@ -421,6 +433,79 @@ public:
         }
     }
 
+    /// --------------------- CAR INTERACTION SCAN ---------------------
+
+    static double cross(Eigen::Vector2d v1, Eigen::Vector2d v2)
+    {
+        return v1(0) * v2(1) - v1(1) * v2(0);
+    }
+
+    bool are_collinear(Eigen::Vector2d pt_a, Eigen::Vector2d pt_b, Eigen::Vector2d pt_c)
+    {
+        double tol = 1e-8;
+        auto ba = pt_b - pt_a;
+        auto ca = pt_a - pt_c;
+        bool col = (std::fabs(cross(ba, ca)) < tol);
+        return col;
+    }
+
+    double get_range(const Pose2D &pose, double beam_theta, Eigen::Vector2d la, Eigen::Vector2d lb)
+    {
+        Eigen::Vector2d o {pose.x, pose.y};
+        // Eigen::Vector2d la {line_segment_a(0), line_segment_a(1)};
+        // Eigen::Vector2d lb {line_segment_b(0), line_segment_b(1)};
+        Eigen::Vector2d v1 = o - la;
+        Eigen::Vector2d v2 = lb - la;
+        Eigen::Vector2d v3 {std::cos(beam_theta + PI/2.0), std::sin(beam_theta + PI/2.0)};    double denom = v2.dot(v3);    double x = INFINITY;    if (std::fabs(denom) > 0.0) {
+            double d1 = cross(v2, v1) / denom;
+            double d2 = v1.dot(v3) / denom;
+            if (d1 >= 0.0 && d2 >= 0.0 && d2 <= 1.0) {
+                x = d1;
+            }
+        } else if (are_collinear(o, la, lb)) {
+            double dist_a = (la - o).norm();
+            double dist_b = (lb - o).norm();
+            x = std::min(dist_a, dist_b);
+        }
+        return x;
+    }
+
+    void ray_cast_opponents(std::vector<double> &scan, const Pose2D &scan_pose)
+    {
+        for (const auto& op_pose : opponent_poses_)
+        {
+            // get bounding box of the other cars
+            double x = op_pose.x;
+            double y = op_pose.y;
+            double theta = op_pose.theta;
+            Eigen::Vector2d diff_x {std::cos(theta), std::sin(theta)};
+            Eigen::Vector2d diff_y {-std::sin(theta), std::cos(theta)};
+            diff_x = ((params.l_r+params.l_f)/2) * diff_x;
+            diff_y = ((params.l_r+params.l_f)/2) * diff_y;
+            auto c1 = diff_x - diff_y;
+            auto c2 = diff_x + diff_y;
+            auto c3 = diff_y - diff_x;
+            auto c4 = -diff_x - diff_y;
+            Eigen::Vector2d corner1 {x+c1(0), y+c1(1)};
+            Eigen::Vector2d corner2 {x+c2(0), y+c2(1)};
+            Eigen::Vector2d corner3 {x+c3(0), y+c3(1)};
+            Eigen::Vector2d corner4 {x+c4(0), y+c4(1)};
+            std::vector<Eigen::Vector2d> bounding_boxes {corner1, corner2, corner3, corner4, corner1};        // modify scan
+            for (size_t i=0; i < scan_beams_; i++)
+            {
+                double current_scan_angle = (-scan_fov_/2) + (i*scan_angle_res_);
+                for (size_t j=0; j<4; j++)
+                {
+                    double range = get_range(scan_pose, scan_pose.theta + current_scan_angle, bounding_boxes[j], bounding_boxes[j+1]);
+                    if (range < scan[i])
+                    {
+                        scan[i] = range;
+                    }
+                }
+            }
+        }
+    }
+
     /// ---------------------- CALLBACK FUNCTIONS ----------------------
 
     void pose_callback(const geometry_msgs::PoseStamped & msg)
@@ -439,7 +524,7 @@ public:
     {
         if(active_car_idx == 0 || active_car_idx == rcid)
         {
-            ROS_INFO("Updating Pose of Car %i", rcid);
+            ROS_INFO("Updating Pose of Car %i", static_cast<int>(rcid));
             geometry_msgs::PoseStamped temp_pose;
             temp_pose.header = msg->header;
             temp_pose.pose = msg->pose.pose;
@@ -461,7 +546,7 @@ public:
         if (std::isdigit(msg.data.at(0)))
         {
             active_car_idx = std::stoi(msg.data);
-            ROS_INFO("Current Active Car: %i", active_car_idx);
+            ROS_INFO("Current Active Car: %i", static_cast<int>(active_car_idx));
         }
     }
 

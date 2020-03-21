@@ -2,7 +2,7 @@
 
 #include <random>
 
-#include "f110_simulator/pose_2d.hpp"
+#include "f110_simulator/Pose2d.h"
 
 namespace racecar_simulator {
 
@@ -22,7 +22,7 @@ class ScanSimulator2D {
     // The distance transform
     double resolution;
     size_t width, height;
-    Pose2D origin;
+    f110_simulator::Pose2d origin;
     std::vector<double> dt;
 
     // Static output vector
@@ -56,12 +56,12 @@ class ScanSimulator2D {
         size_t height, 
         size_t width, 
         double resolution,
-        const Pose2D & origin,
+        const f110_simulator::Pose2d & origin,
         double free_threshold);
     void set_map(const std::vector<double> &map, double free_threshold);
 
-    void scan(const Pose2D & pose, double * scan_data);
-    const std::vector<double> scan(const Pose2D & pose);
+    void scan(const f110_simulator::Pose2d & pose, double * scan_data);
+    const std::vector<double> scan(const f110_simulator::Pose2d & pose);
 
     double distance_transform(double x, double y) const;
 

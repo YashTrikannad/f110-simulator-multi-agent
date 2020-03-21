@@ -17,7 +17,6 @@
 #include <geometry_msgs/PointStamped.h>
 #include <sensor_msgs/LaserScan.h>
 
-#include "f110_simulator/pose_2d.hpp"
 #include "f110_simulator/ackermann_kinematics.hpp"
 #include "f110_simulator/scan_simulator_2d.hpp"
 
@@ -268,7 +267,7 @@ public:
         return col;
     }
 
-    double get_range(const Pose2D &pose, double beam_theta, Eigen::Vector2d& la, Eigen::Vector2d& lb)
+    double get_range(const f110_simulator::Pose2d &pose, double beam_theta, Eigen::Vector2d& la, Eigen::Vector2d& lb)
     {
         Eigen::Vector2d o {pose.x, pose.y};
         Eigen::Vector2d v1 = o - la;
@@ -294,7 +293,7 @@ public:
         return x;
     }
 
-    void ray_cast_opponents(std::vector<float> &scan, const Pose2D &scan_pose)
+    void ray_cast_opponents(std::vector<float> &scan, const f110_simulator::Pose2d &scan_pose)
     {
         for (size_t n_agent=0; n_agent<config::n_agents; n_agent++)
         {
@@ -400,9 +399,10 @@ public:
             {
                 // Get the pose of the lidar, given the pose of base link
                 // (base link is the center of the rear axle)
-                Pose2D scan_pose{.x = state.x + scan_distance_to_base_link * std::cos(state.theta),
-                        .y = state.y + scan_distance_to_base_link * std::sin(state.theta),
-                        .theta = state.theta};
+                f110_simulator::Pose2d scan_pose;
+                scan_pose.x = state.x + scan_distance_to_base_link * std::cos(state.theta);
+                scan_pose.y = state.y + scan_distance_to_base_link * std::sin(state.theta);
+                scan_pose.theta = state.theta;
 
                 // Compute the scan from the lidar
                 std::vector<double> scan = scan_simulator.scan(scan_pose);
@@ -453,13 +453,7 @@ public:
                 current_state.y = state.y;
                 current_state.theta = state.theta;
                 all_poses.poses.at(rcid - 1) = current_state;
-
-                // Add opponents into the scan
-                Pose2D current_pose{};
-                current_pose.x = state.x;
-                current_pose.y = state.y;
-                current_pose.theta = state.theta;
-                ray_cast_opponents(scan_, current_pose);
+                ray_cast_opponents(scan_, current_state);
 
                 // Publish the laser message
                 sensor_msgs::LaserScan scan_msg;
@@ -873,7 +867,7 @@ public:
         size_t width = msg.info.width;
         double resolution = msg.info.resolution;
         // Convert the ROS origin to a pose
-        Pose2D origin;
+        f110_simulator::Pose2d origin;
         origin.x = msg.info.origin.position.x;
         origin.y = msg.info.origin.position.y;
         geometry_msgs::Quaternion q = msg.info.origin.orientation;

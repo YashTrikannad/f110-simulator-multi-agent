@@ -1,4 +1,3 @@
-#include "f110_simulator/pose_2d.hpp"
 #include "f110_simulator/scan_simulator_2d.hpp"
 #include "f110_simulator/distance_transform.hpp"
 
@@ -37,12 +36,12 @@ ScanSimulator2D::ScanSimulator2D(
   }
 }
 
-const std::vector<double> ScanSimulator2D::scan(const Pose2D & pose) {
+const std::vector<double> ScanSimulator2D::scan(const f110_simulator::Pose2d & pose) {
   scan(pose, scan_output.data());
   return scan_output;
 }
 
-void ScanSimulator2D::scan(const Pose2D & pose, double * scan_data) {
+void ScanSimulator2D::scan(const f110_simulator::Pose2d & pose, double * scan_data) {
   // Make theta discrete by mapping the range [-pi,pi] onto [0, theta_discretization)
   double theta_index = 
     theta_discretization * (pose.theta - field_of_view/2.)/(2 * M_PI);
@@ -105,7 +104,7 @@ void ScanSimulator2D::set_map(
     size_t height_, 
     size_t width_, 
     double resolution_,
-    const Pose2D & origin_,
+    const f110_simulator::Pose2d & origin_,
     double free_threshold) {
 
   // Assign parameters

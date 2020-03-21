@@ -3,6 +3,9 @@
 This is a lightweight 2D simulator of the UPenn F1/10 Racecar.
 It can be built with ROS, or it can be used as a standalone C++ library.
 
+<p align="center"><img src="media/multi_agent.png" width="400" height="600">
+</p>
+
 **NOTE:** we are currently developing a multi-agent module and it is not currently fully featured. If you observe any errors in the multi agent version, you may change your branch to single agent as it is completely functional.
 ```
 cd f110-simulator-multi-agent

@@ -69,7 +69,9 @@ public:
         n.getParam("mux_topic", mux_topic);
         mux_topic = mux_topic + "_" + std::to_string(muxid);
         n.getParam("joy_topic", joy_topic);
+        joy_topic = joy_topic + "_" + std::to_string(muxid);
         n.getParam("keyboard_topic", key_topic);
+//        keyboard_topic = key_topic + "_" + std::to_string(muxid);
 
         // Make a publisher for drive messages
         drive_pub = n.advertise<ackermann_msgs::AckermannDriveStamped>(drive_topic, 10);
@@ -121,6 +123,7 @@ public:
         int brake_mux_idx;
         std::string brake_drive_topic;
         n.getParam("brake_drive_topic", brake_drive_topic);
+        brake_drive_topic = brake_drive_topic + "_" + std::to_string(muxid);
         n.getParam("brake_mux_idx", brake_mux_idx);
         add_channel(brake_drive_topic, drive_topic, brake_mux_idx);
 
@@ -169,15 +172,18 @@ public:
 
     void mux_callback(const std_msgs::Int32MultiArray & msg) {
         // reset mux member variable every time it's published
-        for (int i = 0; i < mux_size; i++) {
+        for (int i = 0; i < mux_size; i++)
+        {
             mux_controller[i] = bool(msg.data[i]);
+            ROS_INFO("mux callback: %i, %i", i, int(mux_controller[i]));
         }
 
         // Prints the mux whenever it is changed
         bool changed = false;
         // checks if nothing is on
         bool anything_on = false;
-        for (int i = 0; i < mux_size; i++) {
+        for (int i = 0; i < mux_size; i++)
+        {
             changed = changed || (mux_controller[i] != prev_mux[i]);
             anything_on = anything_on || mux_controller[i];
         }
@@ -189,7 +195,8 @@ public:
             }
             std::cout << std::endl;
         }
-        if (!anything_on) {
+        if (!anything_on || mux_controller[3] == true)
+        {
             // if no mux channel is active, halt the car
             publish_to_drive(0.0, 0.0);
         }

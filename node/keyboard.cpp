@@ -12,12 +12,13 @@
 
 static volatile sig_atomic_t keep_running = 1;
 
-
-void sigHandler(int not_used) {
+void sigHandler(int not_used)
+{
     keep_running = 0;
 }
 
-int main(int argc, char ** argv) {
+int main(int argc, char ** argv)
+{
     ros::init(argc, argv, "keyboard");
     // Initialize Node Handle
     ros::NodeHandle n = ros::NodeHandle("~");
@@ -42,10 +43,11 @@ int main(int argc, char ** argv) {
 
     std_msgs::String msg;
     int c;
-    while ((ros::ok()) && (keep_running)) {
+
+    while ((ros::ok()) && (keep_running))
+    {
         // get the character pressed
         c = getchar();
-
         // Publish the character 
         msg.data = c;
         key_pub.publish(msg);

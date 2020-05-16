@@ -17,6 +17,8 @@
 #include "f110_simulator/config.h"
 
 using namespace racecar_simulator;
+int current_active_car_idx;
+
 
 class BehaviorController {
 private:
@@ -108,11 +110,12 @@ public:
         odom_topic = odom_topic + "_" + std::to_string(muxid);
         n.getParam("imu_topic", imu_topic);
         imu_topic = imu_topic + "_" + std::to_string(muxid);
-        n.getParam("joy_topic", imu_topic);
-        imu_topic = imu_topic + "_" + std::to_string(muxid);
+        n.getParam("joy_topic", joy_topic);
+        joy_topic = joy_topic + "_" + std::to_string(muxid);
         n.getParam("mux_topic", mux_topic);
         mux_topic = mux_topic + "_" + std::to_string(muxid);
         n.getParam("keyboard_topic", keyboard_topic);
+//        keyboard_topic = keyboard_topic + std::to_string(muxid);
         n.getParam("brake_bool_topic", brake_bool_topic);
         brake_bool_topic = brake_bool_topic + "_" + std::to_string(muxid);
 
@@ -199,7 +202,9 @@ public:
         std_msgs::Int32MultiArray mux_msg;
         mux_msg.data.clear();
         // push data onto message
-        for (int i = 0; i < mux_size; i++) {
+        for (int i = 0; i < mux_size; i++)
+        {
+            ROS_INFO("Publishing MUX VALUES %i %i", i, int(mux_controller[i]));
             mux_msg.data.push_back(int(mux_controller[i]));
         }
 
@@ -285,8 +290,8 @@ public:
         }
     }
 
-    void toggle_brake_mux() {
-        ROS_INFO_STREAM("Emergency brake engaged");
+    void toggle_brake_mux()
+    {
         // turn everything off
         for (int i = 0; i < mux_size; i++) {
             mux_controller[i] = false;
@@ -306,10 +311,17 @@ public:
         {
             if (msg.data && safety_on)
             {
+                ROS_INFO_STREAM("Emergency brake engaged");
                 toggle_brake_mux();
-            } else if (!msg.data && mux_controller[brake_mux_idx])
+            }
+            else if (!msg.data && mux_controller[brake_mux_idx])
             {
                 mux_controller[brake_mux_idx] = false;
+            }
+            else if(msg.data)
+            {
+                ROS_INFO_STREAM("On Demand brake engaged");
+                toggle_brake_mux();
             }
         }
         else

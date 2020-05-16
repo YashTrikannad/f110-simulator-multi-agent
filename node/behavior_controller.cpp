@@ -115,7 +115,7 @@ public:
         n.getParam("mux_topic", mux_topic);
         mux_topic = mux_topic + "_" + std::to_string(muxid);
         n.getParam("keyboard_topic", keyboard_topic);
-//        keyboard_topic = keyboard_topic + std::to_string(muxid);
+        keyboard_topic = keyboard_topic + "_" + std::to_string(muxid);
         n.getParam("brake_bool_topic", brake_bool_topic);
         brake_bool_topic = brake_bool_topic + "_" + std::to_string(muxid);
 
@@ -379,6 +379,7 @@ public:
 
     void key_callback(const std_msgs::String & msg)
     {
+        ROS_INFO("key_callback");
         if (std::isdigit(msg.data.at(0)))
         {
             active_car_idx = std::stoi(msg.data);
@@ -413,6 +414,7 @@ public:
                 toggle_mux(random_walker_mux_idx, "Random Walker");
             } else if (msg.data == nav_key_char)
             {
+                ROS_INFO("NAV KEY");
                 // nav
                 toggle_mux(nav_mux_idx, "Navigation");
             }

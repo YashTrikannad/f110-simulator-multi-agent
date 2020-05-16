@@ -152,6 +152,7 @@ public:
         n->getParam("ground_truth_pose_topic", gt_pose_topic);
         gt_pose_topic = gt_pose_topic + "_" + std::to_string(rcid);
         n->getParam("keyboard_topic", keyboard_topic);
+        keyboard_topic = keyboard_topic + "_" + std::to_string(rcid);
 
         // Get steering delay params
         n->getParam("buffer_length", buffer_length);

@@ -71,7 +71,7 @@ public:
         n.getParam("joy_topic", joy_topic);
         joy_topic = joy_topic + "_" + std::to_string(muxid);
         n.getParam("keyboard_topic", key_topic);
-//        keyboard_topic = key_topic + "_" + std::to_string(muxid);
+        key_topic = key_topic + "_" + std::to_string(muxid);
 
         // Make a publisher for drive messages
         drive_pub = n.advertise<ackermann_msgs::AckermannDriveStamped>(drive_topic, 10);

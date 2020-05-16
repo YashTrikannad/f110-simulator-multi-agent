@@ -50,7 +50,7 @@ int main(int argc, char ** argv)
 
     std_msgs::String msg;
     int c;
-    int active_car_idx = 1;
+    int active_car_idx = 0;
 
     while ((ros::ok()) && (keep_running))
     {
@@ -63,7 +63,17 @@ int main(int argc, char ** argv)
         // Publish the character 
         msg.data = c;
         std::cout << "HELLO ACTIVE CAR " << active_car_idx << std::endl;
-        key_pubs[active_car_idx-1].publish(msg);
+        if(active_car_idx == 0)
+        {
+            for(int i=0; i<(int)key_pubs.size(); i++)
+            {
+                key_pubs[i].publish(msg);
+            }
+        }
+        else
+        {
+            key_pubs[active_car_idx-1].publish(msg);
+        }
     }
 
     tcsetattr( STDIN_FILENO, 0, &oldt);

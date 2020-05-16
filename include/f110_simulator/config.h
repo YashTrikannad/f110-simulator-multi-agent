@@ -4,7 +4,7 @@
 namespace config
 {
 
-static constexpr size_t n_agents = 1;
+static constexpr size_t n_agents = 2;
 
 }
 

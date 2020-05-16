@@ -606,7 +606,10 @@ public:
         if (std::isdigit(msg.data.at(0)))
         {
             active_car_idx = std::stoi(msg.data);
-            ROS_INFO("Current Active Car: %i", static_cast<int>(active_car_idx));
+            if(active_car_idx == 0 || rcid == active_car_idx)
+            {
+                ROS_INFO("Current Active Car: %i", static_cast<int>(rcid));
+            }
         }
     }
 

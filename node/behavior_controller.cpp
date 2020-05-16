@@ -379,14 +379,13 @@ public:
 
     void key_callback(const std_msgs::String & msg)
     {
-        ROS_INFO("key_callback");
         if (std::isdigit(msg.data.at(0)))
         {
             active_car_idx = std::stoi(msg.data);
-            ROS_INFO("Current Active Car: %i", active_car_idx);
         }
         if(active_car_idx == 0 || active_car_idx == muxid)
         {
+            ROS_DEBUG("Current Active Car: %i", muxid);
             // Changing mux controller:
             if (msg.data == joy_key_char)
             {
@@ -414,7 +413,6 @@ public:
                 toggle_mux(random_walker_mux_idx, "Random Walker");
             } else if (msg.data == nav_key_char)
             {
-                ROS_INFO("NAV KEY");
                 // nav
                 toggle_mux(nav_mux_idx, "Navigation");
             }

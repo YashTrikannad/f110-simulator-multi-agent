@@ -31,6 +31,7 @@ private:
     // Mux indices
     int joy_mux_idx;
     int key_mux_idx;
+    int brake_mux_idx_;
 
     // Mux controller array
     std::vector<bool> mux_controller;
@@ -86,6 +87,7 @@ public:
         // get mux indices
         n.getParam("joy_mux_idx", joy_mux_idx);
         n.getParam("key_mux_idx", key_mux_idx);
+        n.getParam("key_mux_idx", brake_mux_idx_);
 
         // get params for joystick calculations
         n.getParam("joy_speed_axis", joy_speed_axis);
@@ -120,12 +122,10 @@ public:
         add_channel(rand_drive_topic, drive_topic, random_walker_mux_idx);
 
         // Channel for emergency braking
-        int brake_mux_idx;
         std::string brake_drive_topic;
         n.getParam("brake_drive_topic", brake_drive_topic);
         brake_drive_topic = brake_drive_topic + "_" + std::to_string(muxid);
-        n.getParam("brake_mux_idx", brake_mux_idx);
-        add_channel(brake_drive_topic, drive_topic, brake_mux_idx);
+        add_channel(brake_drive_topic, drive_topic, brake_mux_idx_);
 
         // General navigation channel
         int nav_mux_idx;
@@ -175,7 +175,6 @@ public:
         for (int i = 0; i < mux_size; i++)
         {
             mux_controller[i] = bool(msg.data[i]);
-            ROS_INFO("mux callback: %i, %i", i, int(mux_controller[i]));
         }
 
         // Prints the mux whenever it is changed
@@ -195,7 +194,7 @@ public:
             }
             std::cout << std::endl;
         }
-        if (!anything_on || mux_controller[3] == true)
+        if (!anything_on || mux_controller[brake_mux_idx_] == true)
         {
             // if no mux channel is active, halt the car
             publish_to_drive(0.0, 0.0);

@@ -62,16 +62,18 @@ int main(int argc, char ** argv)
         }
         // Publish the character 
         msg.data = c;
-        std::cout << "HELLO ACTIVE CAR " << active_car_idx << std::endl;
+
         if(active_car_idx == 0)
         {
             for(int i=0; i<(int)key_pubs.size(); i++)
             {
+                ROS_DEBUG("Current Active Car: %i", i+1);
                 key_pubs[i].publish(msg);
             }
         }
         else
         {
+            ROS_DEBUG("Current Active Car: %i", active_car_idx);
             key_pubs[active_car_idx-1].publish(msg);
         }
     }

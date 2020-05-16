@@ -152,6 +152,7 @@ public:
         n->getParam("ground_truth_pose_topic", gt_pose_topic);
         gt_pose_topic = gt_pose_topic + "_" + std::to_string(rcid);
         n->getParam("keyboard_topic", keyboard_topic);
+        keyboard_topic = keyboard_topic + "_" + std::to_string(rcid);
 
         // Get steering delay params
         n->getParam("buffer_length", buffer_length);
@@ -605,7 +606,10 @@ public:
         if (std::isdigit(msg.data.at(0)))
         {
             active_car_idx = std::stoi(msg.data);
-            ROS_INFO("Current Active Car: %i", static_cast<int>(active_car_idx));
+            if(active_car_idx == 0 || rcid == active_car_idx)
+            {
+                ROS_INFO("Current Active Car: %i", static_cast<int>(rcid));
+            }
         }
     }
 

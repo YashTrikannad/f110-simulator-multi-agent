@@ -11,12 +11,13 @@
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
   </group>
 
+  group for racecar2
   <group ns="racecar2">
-    <!-- Open the model file -->
+<!--         Open the model file -->
     <arg name="racecar_xacro" default="$(find f110_simulator)/racecar.xacro"/>
     <param name="tf_prefix" value="racecar2"/>
     <param name="robot_description" command="xacro --inorder '$(arg racecar_xacro)'"/>
-    <!-- Add the transformations -->
+<!--         Add the transformations -->
     <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
   </group>
 

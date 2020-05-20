@@ -22,6 +22,7 @@ find_package(Eigen3)
 include_directories(include)
 file(GLOB SRC_FILES src/*.cpp)
 add_library(${PROJECT_NAME} ${SRC_FILES})
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_generate_messages_cpp)
 target_link_libraries(${PROJECT_NAME} ${LIBS})
 set(LIBS ${LIBS} ${PROJECT_NAME})
 
@@ -86,16 +87,13 @@ if(DEFINED CATKIN_DEVEL_PREFIX)
   set(LIBS ${LIBS} ${catkin_LIBRARIES})
   include_directories(include ${catkin_INCLUDE_DIRS})
 
-
-  
-
   # Add the nodes
   file(GLOB NODE_SRC_FILES node/*.cpp)
   foreach(_node_file ${NODE_SRC_FILES})
       get_filename_component(_node_name ${_node_file} NAME_WE)
       add_executable(${_node_name} ${_node_file})
+      add_dependencies(${_node_name} ${PROJECT_NAME}_generate_messages_cpp)
       target_link_libraries(${_node_name} ${LIBS})
-      add_dependencies(${_node_name} f110_simulator_generate_messages_cpp)
   endforeach()
 
   # Install the library
